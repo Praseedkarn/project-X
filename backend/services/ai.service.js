@@ -1,62 +1,47 @@
 import axios from "axios";
 
-export const generateItinerary = async (description, detailLevel) => {
-  const prompt = `
-Create a travel itinerary in clear, readable text.
+const GROQ_MODEL = "llama-3.1-8b-instant";
 
-Trip details:
-- Description: ${description}
-- Detail level: ${detailLevel || "morning"}
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-Guidelines:
-- Write in plain English
-- Use headings like "Day 1 Morning", "Afternoon", etc.
-- Mention places, transport, and approximate costs naturally
-- DO NOT use JSON
-- DO NOT use markdown
-- Just return readable text
-`;
-
+export const generateItinerary = async (prompt) => {
   try {
+    console.log("🤖 Using Groq model:", GROQ_MODEL);
+
     const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
+      GROQ_API_URL,
       {
-        model: "deepseek/deepseek-r1-0528:free",
+        model: GROQ_MODEL,
         messages: [
           { role: "user", content: prompt }
-        ]
+        ],
+        temperature: 0.7,
+        max_tokens: 800,
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.AI_API_KEY}`,
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "AI Travel Planner"
-        }
+        },
+        timeout: 20000,
       }
     );
 
-    let content = response.data.choices[0].message.content;
+    const text = response.data?.choices?.[0]?.message?.content;
 
-    // Clean any accidental markdown
-    content = content
-      .replace(/```/g, "")
-      .trim();
-
-    return {
-      text: content
-    };
-
-  } catch (error) {
-    console.error("🔥 OPENROUTER FULL ERROR 🔥");
-
-    if (error.response) {
-      console.error("STATUS:", error.response.status);
-      console.error("DATA:", JSON.stringify(error.response.data, null, 2));
-    } else {
-      console.error("MESSAGE:", error.message);
+    if (!text || text.length < 50) {
+      throw new Error("Weak AI response");
     }
 
-    throw new Error("AI failed");
+    return {
+      provider: "groq",
+      text: text.trim(),
+    };
+  } catch (err) {
+    console.error(
+      "❌ Groq error:",
+      err.response?.data || err.message
+    );
+    throw err;
   }
 };
